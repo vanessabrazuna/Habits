@@ -1,7 +1,3 @@
-Perfeito 🚀 Vou refazer o README com uma descrição mais clara e moderna, destacando que o projeto é um **backend para rotina de hábitos diários**.
-
----
-
 # 🧩 Habits - Backend
 
 Backend para uma aplicação de **rotina de hábitos diários**, desenvolvido com **Fastify**, **Prisma** e **TypeScript**.
