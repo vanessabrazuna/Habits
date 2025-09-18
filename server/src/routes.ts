@@ -1,27 +1,31 @@
-import { Temporal } from "@js-temporal/polyfill"
+import dayjs from "dayjs"
 import type { FastifyInstance } from "fastify"
+import { z } from "zod"
 import { prisma } from "./lib/prisma"
-import z from "zod"
 
 export async function appRoutes(app: FastifyInstance) {
   app.post('/habits', async (request) => {
-    const createHabitsBody = z.object({
+    const createHabitBody = z.object({
       title: z.string(),
-      weekDays: z.array(z.number().min(0).max(6))
+      weekDays: z.array(
+        z.number().min(0).max(6)
+      ),
     })
 
-    const { title, weekDays } = createHabitsBody.parse(request.body)
+    const { title, weekDays } = createHabitBody.parse(request.body)
+
+    const today = dayjs().startOf('day').toDate()
 
     await prisma.habit.create({
       data: {
         title,
-        created_at: Temporal.Now.instant().toString(),
+        created_at: today,
         weekDays: {
-          create: weekDays.map(weekDay => {
+          create: weekDays.map((weekDay) => {
             return {
               week_day: weekDay,
             }
-          })
+          }),
         }
       }
     })
@@ -29,27 +33,30 @@ export async function appRoutes(app: FastifyInstance) {
 
   app.get('/day', async (request) => {
     const getDayParams = z.object({
-      date: z.coerce.date()
+      date: z.coerce.date(),
     })
 
     const { date } = getDayParams.parse(request.query)
 
+    const parsedDate = dayjs(date).startOf('day')
+    const weekDay = parsedDate.get('day')
+
     const possibleHabits = await prisma.habit.findMany({
       where: {
         created_at: {
-          lte: Temporal.Instant.from(date.toISOString()).toString(),
+          lte: date,
         },
         weekDays: {
           some: {
-            week_day: date.getUTCDay(),
+            week_day: weekDay,
           }
         }
-      }
+      },
     })
 
-    const day = await prisma.day.findUnique({
+    const day = await prisma.day.findFirst({
       where: {
-        date: Temporal.Instant.from(date.toISOString()).toString(),
+        date: parsedDate.toDate(),
       },
       include: {
         dayHabits: true,
@@ -58,11 +65,11 @@ export async function appRoutes(app: FastifyInstance) {
 
     const completedHabits = day?.dayHabits.map(dayHabit => {
       return dayHabit.habit_id
-    })
+    }) ?? []
 
     return {
       possibleHabits,
-      completedHabits
+      completedHabits,
     }
   })
 
@@ -73,7 +80,7 @@ export async function appRoutes(app: FastifyInstance) {
 
     const { id } = toggleHabitParams.parse(request.params)
 
-    const today = Temporal.Now.plainDateISO().toString()
+    const today = dayjs().startOf('day').toDate()
 
     let day = await prisma.day.findUnique({
       where: {
